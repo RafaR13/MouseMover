@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ctypes
+import math
+import os
 import time
 import sys
 import threading
@@ -16,6 +18,7 @@ import pystray
 
 MOUSEEVENTF_MOVE = 0x0001
 INPUT_MOUSE = 0
+APP_ICON_FILE = "icon.ico"
 
 
 class MOUSEINPUT(ctypes.Structure):
@@ -46,8 +49,13 @@ def _enable_dpi_awareness() -> None:
             pass
 
 
-def jiggle_mouse(pixels: int = 100) -> None:
-    """Move o rato 1 pixel e volta — gera um evento real de rato."""
+def resource_path(filename: str) -> str:
+    base_path = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, filename)
+
+
+def jiggle_mouse(pixels: int = 1, flashy: bool = False) -> None:
+    """Move o rato em passos pequenos — gera eventos reais de rato."""
     extra = ctypes.c_void_p(0)
     send = ctypes.windll.user32.SendInput
     send.argtypes = (wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int)
@@ -59,8 +67,29 @@ def jiggle_mouse(pixels: int = 100) -> None:
         inp.mi = MOUSEINPUT(dx, dy, 0, MOUSEEVENTF_MOVE, 0, extra)
         send(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
 
+    if flashy:
+        current_x = 0
+        current_y = 0
+        width = 48
+        height = 24
+        steps = 120
+
+        for step in range(steps + 1):
+            angle = (2 * math.pi * step) / steps
+            target_x = round(width * math.sin(angle))
+            target_y = round(height * math.sin(2 * angle))
+
+            while current_x != target_x or current_y != target_y:
+                dx = 0 if current_x == target_x else (1 if target_x > current_x else -1)
+                dy = 0 if current_y == target_y else (1 if target_y > current_y else -1)
+                move(dx, dy)
+                current_x += dx
+                current_y += dy
+                time.sleep(0.006)
+        return
+
     move(pixels, 0)
-    time.sleep(2)
+    time.sleep(0.1)
     move(-pixels, 0)
 
 
@@ -74,10 +103,29 @@ def make_tray_icon() -> Image.Image:
     return img
 
 
+def ensure_app_icon() -> str:
+    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), APP_ICON_FILE)
+    if not os.path.exists(icon_path):
+        make_tray_icon().save(
+            icon_path,
+            format="ICO",
+            sizes=((16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)),
+        )
+    return icon_path
+
+
+def load_app_icon() -> Image.Image:
+    icon_path = resource_path(APP_ICON_FILE)
+    if os.path.exists(icon_path):
+        return Image.open(icon_path).convert("RGBA")
+    return make_tray_icon()
+
+
 class MouseMoverApp:
     def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.title("Mouse Mover")
+        self._set_window_icon()
         self.root.resizable(False, False)
         self.root.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
         self.root.bind("<Unmap>", self._on_unmap)
@@ -87,11 +135,20 @@ class MouseMoverApp:
         self.tray: pystray.Icon | None = None
 
         self.interval_var = tk.IntVar(value=30)
+        self.flashy_var = tk.BooleanVar(value=False)
         self.status_var = tk.StringVar(value="Parado")
 
         self._build_ui()
         self._center_window()
         self._start_tray()
+
+    def _set_window_icon(self) -> None:
+        icon_path = resource_path(APP_ICON_FILE)
+        if os.path.exists(icon_path):
+            try:
+                self.root.iconbitmap(icon_path)
+            except tk.TclError:
+                pass
 
     def _build_ui(self) -> None:
         pad = {"padx": 16, "pady": 8}
@@ -115,20 +172,28 @@ class MouseMoverApp:
         interval.bind("<FocusOut>", lambda _e: self._on_interval_changed())
         interval.bind("<Return>", lambda _e: self._on_interval_changed())
 
+        flashy = ttk.Checkbutton(
+            frame,
+            text="Flashy mode",
+            variable=self.flashy_var,
+            command=self._on_mode_changed,
+        )
+        flashy.grid(row=2, column=0, columnspan=2, sticky="w", padx=16, pady=4)
+
         btns = ttk.Frame(frame)
-        btns.grid(row=2, column=0, columnspan=2, pady=12)
+        btns.grid(row=3, column=0, columnspan=2, pady=12)
         self.start_btn = ttk.Button(btns, text="Iniciar", command=self.start, width=12)
         self.start_btn.grid(row=0, column=0, padx=6)
         self.stop_btn = ttk.Button(btns, text="Parar", command=self.stop, width=12, state=tk.DISABLED)
         self.stop_btn.grid(row=0, column=1, padx=6)
 
-        ttk.Label(frame, textvariable=self.status_var).grid(row=3, column=0, columnspan=2, **pad)
+        ttk.Label(frame, textvariable=self.status_var).grid(row=4, column=0, columnspan=2, **pad)
         ttk.Label(
             frame,
             text="Fechar a janela esconde a app junto ao relógio.\nClique direito no ícone → Sair para fechar de vez.",
             justify="left",
             foreground="#444",
-        ).grid(row=4, column=0, columnspan=2, sticky="w", padx=16, pady=(0, 12))
+        ).grid(row=5, column=0, columnspan=2, sticky="w", padx=16, pady=(0, 12))
 
     def _center_window(self) -> None:
         self.root.update_idletasks()
@@ -155,6 +220,10 @@ class MouseMoverApp:
             self._schedule(jiggle_now=False)
             self._refresh_status()
 
+    def _on_mode_changed(self) -> None:
+        if self.running:
+            self._refresh_status()
+
     def start(self) -> None:
         if self.running:
             return
@@ -177,12 +246,13 @@ class MouseMoverApp:
 
     def _refresh_status(self) -> None:
         secs = int(self.interval_var.get())
-        self.status_var.set(f"A correr — a cada {secs} s")
+        mode = "flashy" if self.flashy_var.get() else "normal"
+        self.status_var.set(f"A correr — a cada {secs} s ({mode})")
 
     def _schedule(self, jiggle_now: bool) -> None:
         self._cancel_timer()
         if jiggle_now:
-            jiggle_mouse()
+            jiggle_mouse(flashy=self.flashy_var.get())
         ms = max(5, int(self.interval_var.get())) * 1000
         self._after_id = self.root.after(ms, self._tick)
 
@@ -190,7 +260,7 @@ class MouseMoverApp:
         self._after_id = None
         if not self.running:
             return
-        jiggle_mouse()
+        jiggle_mouse(flashy=self.flashy_var.get())
         self._schedule(jiggle_now=False)
 
     def _cancel_timer(self) -> None:
@@ -230,7 +300,7 @@ class MouseMoverApp:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Sair", self.quit_app),
         )
-        self.tray = pystray.Icon("MouseMover", make_tray_icon(), "Mouse Mover", menu)
+        self.tray = pystray.Icon("MouseMover", load_app_icon(), "Mouse Mover", menu)
         threading.Thread(target=self.tray.run, daemon=True).start()
 
     def _update_tray_menu(self) -> None:
@@ -246,6 +316,7 @@ def main() -> int:
     if sys.platform != "win32":
         print("Esta app é para Windows.")
         return 1
+    ensure_app_icon()
     _enable_dpi_awareness()
     MouseMoverApp().run()
     return 0
