@@ -1,4 +1,4 @@
-"""Mouse Mover — mexe o rato de X em X segundos, com janela e bandeja."""
+"""Mouse Mover — moves the mouse every few seconds, with a window and tray icon."""
 
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ def resource_path(filename: str) -> str:
 
 
 def jiggle_mouse(pixels: int = 1, flashy: bool = False) -> None:
-    """Move o rato em passos pequenos — gera eventos reais de rato."""
+    """Move the mouse in small steps, generating real mouse events."""
     extra = ctypes.c_void_p(0)
     send = ctypes.windll.user32.SendInput
     send.argtypes = (wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int)
@@ -136,7 +136,7 @@ class MouseMoverApp:
 
         self.interval_var = tk.IntVar(value=30)
         self.flashy_var = tk.BooleanVar(value=False)
-        self.status_var = tk.StringVar(value="Parado")
+        self.status_var = tk.StringVar(value="Stopped")
 
         self._build_ui()
         self._center_window()
@@ -155,11 +155,11 @@ class MouseMoverApp:
         frame = ttk.Frame(self.root, padding=12)
         frame.grid(row=0, column=0, sticky="nsew")
 
-        ttk.Label(frame, text="Mexe o rato automaticamente", font=("Segoe UI", 11, "bold")).grid(
+        ttk.Label(frame, text="Move the mouse automatically", font=("Segoe UI", 11, "bold")).grid(
             row=0, column=0, columnspan=2, sticky="w", **pad
         )
 
-        ttk.Label(frame, text="Intervalo (segundos):").grid(row=1, column=0, sticky="w", padx=16, pady=4)
+        ttk.Label(frame, text="Interval (seconds):").grid(row=1, column=0, sticky="w", padx=16, pady=4)
         interval = ttk.Spinbox(
             frame,
             from_=5,
@@ -182,15 +182,15 @@ class MouseMoverApp:
 
         btns = ttk.Frame(frame)
         btns.grid(row=3, column=0, columnspan=2, pady=12)
-        self.start_btn = ttk.Button(btns, text="Iniciar", command=self.start, width=12)
+        self.start_btn = ttk.Button(btns, text="Start", command=self.start, width=12)
         self.start_btn.grid(row=0, column=0, padx=6)
-        self.stop_btn = ttk.Button(btns, text="Parar", command=self.stop, width=12, state=tk.DISABLED)
+        self.stop_btn = ttk.Button(btns, text="Stop", command=self.stop, width=12, state=tk.DISABLED)
         self.stop_btn.grid(row=0, column=1, padx=6)
 
         ttk.Label(frame, textvariable=self.status_var).grid(row=4, column=0, columnspan=2, **pad)
         ttk.Label(
             frame,
-            text="Fechar a janela esconde a app junto ao relógio.\nClique direito no ícone → Sair para fechar de vez.",
+            text="Closing the window hides the app in the system tray.\nRight-click the icon -> Quit to close it fully.",
             justify="left",
             foreground="#444",
         ).grid(row=5, column=0, columnspan=2, sticky="w", padx=16, pady=(0, 12))
@@ -241,13 +241,13 @@ class MouseMoverApp:
         self._cancel_timer()
         self.start_btn.configure(state=tk.NORMAL)
         self.stop_btn.configure(state=tk.DISABLED)
-        self.status_var.set("Parado")
+        self.status_var.set("Stopped")
         self._update_tray_menu()
 
     def _refresh_status(self) -> None:
         secs = int(self.interval_var.get())
         mode = "flashy" if self.flashy_var.get() else "normal"
-        self.status_var.set(f"A correr — a cada {secs} s ({mode})")
+        self.status_var.set(f"Running - every {secs} s ({mode})")
 
     def _schedule(self, jiggle_now: bool) -> None:
         self._cancel_timer()
@@ -294,11 +294,11 @@ class MouseMoverApp:
 
     def _start_tray(self) -> None:
         menu = pystray.Menu(
-            pystray.MenuItem("Mostrar", self.show_window, default=True),
-            pystray.MenuItem("Iniciar", lambda: self._ui(self.start)),
-            pystray.MenuItem("Parar", lambda: self._ui(self.stop)),
+            pystray.MenuItem("Show", self.show_window, default=True),
+            pystray.MenuItem("Start", lambda: self._ui(self.start)),
+            pystray.MenuItem("Stop", lambda: self._ui(self.stop)),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Sair", self.quit_app),
+            pystray.MenuItem("Quit", self.quit_app),
         )
         self.tray = pystray.Icon("MouseMover", load_app_icon(), "Mouse Mover", menu)
         threading.Thread(target=self.tray.run, daemon=True).start()
@@ -314,7 +314,7 @@ class MouseMoverApp:
 
 def main() -> int:
     if sys.platform != "win32":
-        print("Esta app é para Windows.")
+        print("This app is for Windows.")
         return 1
     ensure_app_icon()
     _enable_dpi_awareness()

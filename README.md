@@ -35,7 +35,7 @@ That installs:
 python mousemover.py
 ```
 
-The app starts moving the mouse (default interval: 30 seconds). Closing the window hides it in the tray. Right-click the tray icon → **Sair** to quit.
+The app starts moving the mouse (default interval: 30 seconds). Closing the window hides it in the tray. Right-click the tray icon -> **Quit** to quit.
 
 ### Build the `.exe`
 

@@ -4,13 +4,13 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 if ! command -v powershell.exe >/dev/null 2>&1; then
-  echo "Esta app usa APIs do Windows e deve ser empacotada com Python/PyInstaller no Windows."
-  echo "Em WSL, instala o Python no Windows e corre este script novamente."
+  echo "This app uses Windows APIs and must be packaged with Python/PyInstaller on Windows."
+  echo "From WSL, install Python on Windows and run this script again."
   exit 1
 fi
 
 if ! command -v wslpath >/dev/null 2>&1; then
-  echo "Nao encontrei wslpath. Corre o build no Windows com:"
+  echo "Could not find wslpath. Run the build on Windows with:"
   echo "powershell -ExecutionPolicy Bypass -File .\\build.ps1"
   exit 1
 fi
